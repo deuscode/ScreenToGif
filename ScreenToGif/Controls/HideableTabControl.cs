@@ -1,16 +1,11 @@
 ﻿using System;
-using System.Diagnostics;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
-using System.Windows.Media;
 using System.Windows.Media.Animation;
-using ScreenToGif.FileWriters;
 using ScreenToGif.Util;
-using ScreenToGif.Windows;
-using ScreenToGif.Windows.Other;
 
 namespace ScreenToGif.Controls
 {
@@ -22,11 +17,51 @@ namespace ScreenToGif.Controls
         #region Variables
 
         private Button _hideButton;
-        private Button _optionsButton;
-        private Button _feedbackButton;
-        private Button _helpButton;
+        private ImageMenuItem _extrasMenuItem;
         private TabPanel _tabPanel;
         private Border _border;
+        private ImageToggleButton _notificationButton;
+        private NotificationListControl _notificationList;
+
+        #endregion
+
+        #region Dependency Properties
+
+        public static DependencyProperty OptionsCommandProperty = DependencyProperty.Register("OptionsCommand", typeof(ICommand), typeof(HideableTabControl), new PropertyMetadata(null));
+
+        public static DependencyProperty FeedbackCommandProperty = DependencyProperty.Register("FeedbackCommand", typeof(ICommand), typeof(HideableTabControl), new PropertyMetadata(null));
+
+        public static DependencyProperty TroubleshootCommandProperty = DependencyProperty.Register("TroubleshootCommand", typeof(ICommand), typeof(HideableTabControl), new PropertyMetadata(null));
+
+        public static DependencyProperty HelpCommandProperty = DependencyProperty.Register("HelpCommand", typeof(ICommand), typeof(HideableTabControl), new PropertyMetadata(null));
+
+        #endregion
+
+        #region Properties
+
+        public ICommand OptionsCommand
+        {
+            get => (ICommand)GetValue(OptionsCommandProperty);
+            set => SetValue(OptionsCommandProperty, value);
+        }
+
+        public ICommand FeedbackCommand
+        {
+            get => (ICommand)GetValue(FeedbackCommandProperty);
+            set => SetValue(FeedbackCommandProperty, value);
+        }
+
+        public ICommand TroubleshootCommand
+        {
+            get => (ICommand)GetValue(TroubleshootCommandProperty);
+            set => SetValue(TroubleshootCommandProperty, value);
+        }
+
+        public ICommand HelpCommand
+        {
+            get => (ICommand)GetValue(HelpCommandProperty);
+            set => SetValue(HelpCommandProperty, value);
+        }
 
         #endregion
 
@@ -42,47 +77,11 @@ namespace ScreenToGif.Controls
             _tabPanel = Template.FindName("TabPanel", this) as TabPanel;
             _border = Template.FindName("ContentBorder", this) as Border;
 
-            _optionsButton = Template.FindName("OptionsButton", this) as ImageButton;
-            _feedbackButton = Template.FindName("FeedbackButton", this) as ImageButton;
-            _helpButton = Template.FindName("HelpButton", this) as ImageButton;
+            _notificationButton = Template.FindName("NotificationsButton", this) as ImageToggleButton;
+            _notificationList = Template.FindName("NotificationList", this) as NotificationListControl;
+            _extrasMenuItem = Template.FindName("ExtrasMenuItem", this) as ImageMenuItem;
+
             _hideButton = Template.FindName("HideGridButton", this) as Button;
-
-            //Options
-            if (_optionsButton != null)
-                _optionsButton.Click += (sender, args) =>
-                {
-                    var options = new Options { Owner = Window.GetWindow(this) };
-                    options.ShowDialog();
-                };
-
-            //Feedback
-            if (_feedbackButton != null)
-                _feedbackButton.Click += async (sender, args) =>
-                {
-                    var feed = new Feedback { Owner = Window.GetWindow(this) };
-
-                    if (feed.ShowDialog() != true)
-                        return;
-
-                    var window = feed.Owner as Editor;
-
-                    if (window != null)
-                        await window.SendFeedback();
-                };
-
-            //Help
-            if (_helpButton != null)
-                _helpButton.Click += (sender, args) =>
-                {
-                    try
-                    {
-                        Process.Start("https://github.com/NickeManarin/ScreenToGif/wiki/Help");
-                    }
-                    catch (Exception ex)
-                    {
-                        LogWriter.Log(ex, "Openning the Help");
-                    }
-                };
 
             //Hide tab
             if (_hideButton != null)
@@ -98,6 +97,7 @@ namespace ScreenToGif.Controls
             }
 
             UpdateVisual();
+            UpdateNotificationButton();
         }
 
         #region Events
@@ -137,9 +137,7 @@ namespace ScreenToGif.Controls
 
         private void TabItem_PreviewMouseDown(object sender, MouseButtonEventArgs e)
         {
-            var selected = sender as TabItem;
-
-            if (selected != null)
+            if (sender is TabItem selected)
                 selected.IsSelected = true;
 
             if (Math.Abs(_border.ActualHeight - 100) < 0)
@@ -218,13 +216,13 @@ namespace ScreenToGif.Controls
         public void UpdateVisual(bool isActivated = true)
         {
             //Shows only a white foreground when: 
-            //Glass.GlassColor.GetBrightness() <= 137
-            //var color = Glass.GlassColor;
-            //var isdark2 = (2*Glass.GlassColor.R) + (5*Glass.GlassColor.G) + Glass.GlassColor.B;
-            //477, 480, 484, 495, 499, 502, 505, 513, 572, 598, 601 = light back
-            //0, 251, 263, 272, 276, 281, 299, 310, 334, 340, 345, 350, 370, 421, 428, 436, 441, 442, 449, 450, 470, 472, 473, 475, 476, 478 = dark back (482, 494) 
 
-            var darkForeground = !SystemParameters.IsGlassEnabled || !Other.IsWin8OrHigher() || Glass.GlassColor.GetBrightness() > 137 || !isActivated;           
+            //var color = Glass.GlassColor;
+            //var ness = Glass.GlassColor.GetBrightness();
+            //var aa = color.ConvertRgbToHsv();
+
+            var darkForeground = !SystemParameters.IsGlassEnabled || !Other.IsWin8OrHigher() || Glass.GlassColor.GetBrightness() > 973 || !isActivated;           
+            //var darkForeground = !SystemParameters.IsGlassEnabled || !Other.IsWin8OrHigher() || aa.V > 0.5 || !isActivated;           
             var showBackground = !Other.IsWin8OrHigher();
 
             //Console.WriteLine("!IsGlassEnabled: " + !SystemParameters.IsGlassEnabled);
@@ -249,24 +247,37 @@ namespace ScreenToGif.Controls
             }
 
             //Update the buttons.
-            if (_optionsButton != null)
-                _optionsButton.Foreground = !darkForeground && UserSettings.All.EditorExtendChrome ? Brushes.GhostWhite : Brushes.Black;
+            if (_notificationButton != null)
+            {
+                _notificationButton.DarkMode = !darkForeground;
+                _notificationButton.IsOverNonClientArea = UserSettings.All.EditorExtendChrome;
+            }
+            
+            if (_extrasMenuItem != null)
+            {
+                _extrasMenuItem.DarkMode = !darkForeground;
+                _extrasMenuItem.IsOverNonClientArea = UserSettings.All.EditorExtendChrome;
+            }
+        }
 
-            if (_feedbackButton != null)
-                _feedbackButton.Foreground = !darkForeground && UserSettings.All.EditorExtendChrome ? Brushes.GhostWhite : Brushes.Black;
+        public void UpdateNotifications()
+        {
+            _notificationList?.UpdateList();
 
-            if (_helpButton != null)
-                _helpButton.Foreground = !darkForeground && UserSettings.All.EditorExtendChrome ? Brushes.GhostWhite : Brushes.Black;
+            UpdateNotificationButton();
+        }
 
-            #region Tests
+        public void UpdateNotificationButton()
+        {
+            if (System.ComponentModel.DesignerProperties.GetIsInDesignMode(this))
+                return;
 
-            //Console.WriteLine(SystemParameters.WindowGlassColor + " - " + SystemParameters.WindowGlassColor.GetBrightness2() + " • " + 
-            //    SystemParameters.WindowGlassColor.GetBrightness() + " - " +
-            //    SystemParameters.WindowGlassColor.ConvertRgbToHsv().V);
+            var most = NotificationManager.Notifications.Select(s => s.Kind).OrderByDescending(a => (int)a).FirstOrDefault();
+            
+            _notificationButton.Content =  FindResource(StatusBand.KindToString(most)) as Canvas;
 
-            //Console.WriteLine(Glass.GlassColor.GetBrightness() + " " + isDark);
-
-            #endregion
+            if (most != StatusType.None)
+                (_notificationButton.FindResource("NotificationStoryboard") as Storyboard)?.Begin();
         }
     }
 }

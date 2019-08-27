@@ -11,8 +11,7 @@ namespace ScreenToGif.Util
     {
         public static bool IsEnoughContrast(this Color color1, Color color2)
         {
-            Console.WriteLine(GetBrightness(color1) + ": " + GetBrightness2(color1) + " - " + GetBrightness2(color2) + " = " +
-                Math.Abs(GetBrightness2(color1) - GetBrightness2(color2)));
+            Console.WriteLine(GetBrightness(color1) + ": " + GetBrightness2(color1) + " - " + GetBrightness2(color2) + " = " + Math.Abs(GetBrightness2(color1) - GetBrightness2(color2)));
 
             return Math.Abs(GetBrightness2(color1) - GetBrightness2(color2)) > 125;
         }
@@ -46,12 +45,17 @@ namespace ScreenToGif.Util
             //return (0.299*c.R + 0.587*c.G + 0.114*c.B);
         }
 
-        public static int GetBrightness(this Color c)
+        public static int GetBrightness1(this Color c)
         {
             return (int)Math.Sqrt(
                c.R * c.R * .241 +
                c.G * c.G * .691 +
                c.B * c.B * .068);
+        }
+
+        public static int GetBrightness(this Color c)
+        {
+            return (2 * c.R) + (5 * c.G) + c.B;
         }
 
         public static float GetHue(this Color color)
@@ -263,9 +267,7 @@ namespace ScreenToGif.Util
             var delta = v - min;
 
             if (v == 0.0)
-            {
                 s = 0;
-            }
             else
                 s = delta / v;
 
@@ -309,9 +311,7 @@ namespace ScreenToGif.Util
             var delta = v - min;
 
             if (v == 0.0)
-            {
                 s = 0;
-            }
             else
                 s = delta / v;
 
@@ -423,14 +423,10 @@ namespace ScreenToGif.Util
             var colorsList = new List<Color>(8);
 
             for (var i = 0; i < 29; i++)
-            {
                 colorsList.Add(ConvertHsvToRgb(i * 12, 1, 1, 255));
-            }
 
             colorsList.Add(ConvertHsvToRgb(0, 1, 1, 255));
-
             return colorsList;
         }
     }
-
 }

@@ -7,7 +7,7 @@ using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
-using ScreenToGif.FileWriters;
+using System.Windows.Input;
 using ScreenToGif.ImageUtil;
 using ScreenToGif.Util;
 using ScreenToGif.Windows.Other;
@@ -69,6 +69,12 @@ namespace ScreenToGif.Controls
             new FrameworkPropertyMetadata(false));
 
         public static readonly DependencyProperty UploadLinkProperty = DependencyProperty.Register("UploadLink", typeof(string), typeof(EncoderListViewItem),
+            new FrameworkPropertyMetadata());
+
+        public static readonly DependencyProperty UploadLinkDisplayProperty = DependencyProperty.Register("UploadLinkDisplay", typeof(string), typeof(EncoderListViewItem),
+            new FrameworkPropertyMetadata());
+
+        public static readonly DependencyProperty DeletionLinkProperty = DependencyProperty.Register("DeletionLink", typeof(string), typeof(EncoderListViewItem),
             new FrameworkPropertyMetadata());
 
         public static readonly DependencyProperty UploadTaskExceptionProperty = DependencyProperty.Register("UploadTaskException", typeof(Exception), typeof(EncoderListViewItem),
@@ -273,6 +279,26 @@ namespace ScreenToGif.Controls
         }
 
         /// <summary>
+        /// The link to the uploaded file (without the http).
+        /// </summary>
+        [Description("The link to the uploaded file (without the http).")]
+        public string UploadLinkDisplay
+        {
+            get => (string)GetValue(UploadLinkDisplayProperty);
+            set => SetCurrentValue(UploadLinkDisplayProperty, value);
+        }
+
+        /// <summary>
+        /// The link to delete the uploaded file.
+        /// </summary>
+        [Description("The link to delete the uploaded file.")]
+        public string DeletionLink
+        {
+            get => (string)GetValue(DeletionLinkProperty);
+            set => SetCurrentValue(DeletionLinkProperty, value);
+        }
+
+        /// <summary>
         /// The exception detail about the upload task.
         /// </summary>
         [Description("The exception detail about the upload task.")]
@@ -436,6 +462,7 @@ namespace ScreenToGif.Controls
             var copyImageMenu = Template.FindName("CopyImageMenuItem", this) as ImageMenuItem;
             var copyFilenameMenu = Template.FindName("CopyFilenameMenuItem", this) as ImageMenuItem;
             var copyFolderMenu = Template.FindName("CopyFolderMenuItem", this) as ImageMenuItem;
+            var copyLinkMenu = Template.FindName("CopyLinkMenuItem", this) as ImageMenuItem;
 
             if (cancelButton != null)
                 cancelButton.Click += (s, a) => RaiseCancelClickedEvent();
@@ -477,7 +504,7 @@ namespace ScreenToGif.Controls
                         if (string.IsNullOrWhiteSpace(UploadLink))
                             return;
 
-                        Process.Start(UploadLink);
+                        Process.Start(Keyboard.Modifiers != ModifierKeys.Control || string.IsNullOrWhiteSpace(DeletionLink) ? UploadLink : DeletionLink);
                     }
                     catch (Exception e)
                     {
@@ -543,15 +570,18 @@ namespace ScreenToGif.Controls
             if (copyMenu != null)
                 copyMenu.Click += (s, a) =>
                 {
-                    if (!string.IsNullOrWhiteSpace(OutputFilename))
-                    {
-                        var data = new DataObject();
-                        data.SetImage(OutputFilename.SourceFrom());
-                        data.SetText(OutputFilename, TextDataFormat.Text);
-                        data.SetFileDropList(new StringCollection { OutputFilename });
+                    if (string.IsNullOrWhiteSpace(OutputFilename))
+                        return;
 
-                        Clipboard.SetDataObject(data, true);
-                    }
+                    var data = new DataObject();
+
+                    if (OutputType == Export.Apng || OutputType == Export.Gif)
+                        data.SetImage(OutputFilename.SourceFrom());
+
+                    data.SetText(OutputFilename, TextDataFormat.Text);
+                    data.SetFileDropList(new StringCollection { OutputFilename });
+
+                    Clipboard.SetDataObject(data, true);
                 };
 
             //Copy as image.
@@ -577,6 +607,16 @@ namespace ScreenToGif.Controls
                     if (!string.IsNullOrWhiteSpace(OutputPath))
                         Clipboard.SetText(OutputPath);
                 };
+
+            // Copy link
+            if (copyLinkMenu != null)
+            {
+                copyLinkMenu.Click += (s, a) =>
+                {
+                    if (!string.IsNullOrWhiteSpace(UploadLink))
+                        Clipboard.SetText(UploadLink);
+                };
+            }
         }
 
         private static void OutputFilename_PropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
